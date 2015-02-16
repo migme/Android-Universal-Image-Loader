@@ -15,14 +15,20 @@
  *******************************************************************************/
 package com.nostra13.universalimageloader.cache.disc.impl.ext;
 
+import android.content.Context;
+import android.content.res.AssetFileDescriptor;
 import android.graphics.Bitmap;
+
 import com.nostra13.universalimageloader.cache.disc.DiskCache;
+import com.nostra13.universalimageloader.cache.disc.impl.ext.DiskLruCache.Entry;
 import com.nostra13.universalimageloader.cache.disc.naming.FileNameGenerator;
 import com.nostra13.universalimageloader.utils.IoUtils;
 import com.nostra13.universalimageloader.utils.L;
 
 import java.io.BufferedOutputStream;
 import java.io.File;
+import java.io.FileDescriptor;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -43,12 +49,15 @@ public class LruDiskCache implements DiskCache {
 	public static final Bitmap.CompressFormat DEFAULT_COMPRESS_FORMAT = Bitmap.CompressFormat.PNG;
 	/** {@value */
 	public static final int DEFAULT_COMPRESS_QUALITY = 100;
-
+	
+	public static final String ASSETS_PREFIX = "assets://";
 	private static final String ERROR_ARG_NULL = " argument must be not null";
 	private static final String ERROR_ARG_NEGATIVE = " argument must be positive number";
 
 	protected DiskLruCache cache;
 	private File reserveCacheDir;
+	
+	private Context context;
 
 	protected final FileNameGenerator fileNameGenerator;
 
@@ -65,8 +74,8 @@ public class LruDiskCache implements DiskCache {
 	 * @param cacheMaxSize      Max cache size in bytes. <b>0</b> means cache size is unlimited.
 	 * @throws IOException if cache can't be initialized (e.g. "No space left on device")
 	 */
-	public LruDiskCache(File cacheDir, FileNameGenerator fileNameGenerator, long cacheMaxSize) throws IOException {
-		this(cacheDir, null, fileNameGenerator, cacheMaxSize, 0);
+	public LruDiskCache(Context context, File cacheDir, FileNameGenerator fileNameGenerator, long cacheMaxSize) throws IOException {
+		this(context, cacheDir, null, fileNameGenerator, cacheMaxSize, 0);
 	}
 
 	/**
@@ -79,7 +88,7 @@ public class LruDiskCache implements DiskCache {
 	 * @param cacheMaxFileCount Max file count in cache. <b>0</b> means file count is unlimited.
 	 * @throws IOException if cache can't be initialized (e.g. "No space left on device")
 	 */
-	public LruDiskCache(File cacheDir, File reserveCacheDir, FileNameGenerator fileNameGenerator, long cacheMaxSize,
+	public LruDiskCache(Context context, File cacheDir, File reserveCacheDir, FileNameGenerator fileNameGenerator, long cacheMaxSize,
 			int cacheMaxFileCount) throws IOException {
 		if (cacheDir == null) {
 			throw new IllegalArgumentException("cacheDir" + ERROR_ARG_NULL);
@@ -93,6 +102,8 @@ public class LruDiskCache implements DiskCache {
 		if (fileNameGenerator == null) {
 			throw new IllegalArgumentException("fileNameGenerator" + ERROR_ARG_NULL);
 		}
+		
+		this.context = context;
 
 		if (cacheMaxSize == 0) {
 			cacheMaxSize = Long.MAX_VALUE;
@@ -103,17 +114,17 @@ public class LruDiskCache implements DiskCache {
 
 		this.reserveCacheDir = reserveCacheDir;
 		this.fileNameGenerator = fileNameGenerator;
-		initCache(cacheDir, reserveCacheDir, cacheMaxSize, cacheMaxFileCount);
+		initCache(context, cacheDir, reserveCacheDir, cacheMaxSize, cacheMaxFileCount);
 	}
 
-	private void initCache(File cacheDir, File reserveCacheDir, long cacheMaxSize, int cacheMaxFileCount)
+	private void initCache(Context context, File cacheDir, File reserveCacheDir, long cacheMaxSize, int cacheMaxFileCount)
 			throws IOException {
 		try {
-			cache = DiskLruCache.open(cacheDir, 1, 1, cacheMaxSize, cacheMaxFileCount);
+			cache = DiskLruCache.open(context, cacheDir, 1, 1, cacheMaxSize, cacheMaxFileCount);
 		} catch (IOException e) {
 			L.e(e);
 			if (reserveCacheDir != null) {
-				initCache(reserveCacheDir, null, cacheMaxSize, cacheMaxFileCount);
+				initCache(context, reserveCacheDir, null, cacheMaxSize, cacheMaxFileCount);
 			}
 			if (cache == null) {
 				throw e; //new RuntimeException("Can't initialize disk cache", e);
@@ -130,7 +141,24 @@ public class LruDiskCache implements DiskCache {
 	public File get(String imageUri) {
 		DiskLruCache.Snapshot snapshot = null;
 		try {
-			snapshot = cache.get(getKey(imageUri));
+			Entry entry = cache.get(imageUri);
+			if(entry == null) return null;
+			// if filename is like "assets://xxx". it is a asset file
+			String filename = entry.getFilename();
+			if(filename != null && filename.startsWith(ASSETS_PREFIX)){
+				String fileUri = filename.substring(ASSETS_PREFIX.length());
+				
+				String fileDiskName = fileNameGenerator.generate(imageUri);
+				File file = new File(reserveCacheDir, fileDiskName);
+				if(file.exists()){
+					return file;
+				}
+				InputStream is = context.getAssets().open(fileUri);
+				writeBytesToFile(is, file);
+				return file;
+			}
+			
+			snapshot = cache.entryHandle(entry);
 			return snapshot == null ? null : snapshot.getFile(0);
 		} catch (IOException e) {
 			L.e(e);
@@ -141,10 +169,30 @@ public class LruDiskCache implements DiskCache {
 			}
 		}
 	}
+	
+	private void writeBytesToFile(InputStream is, File file) throws IOException{
+	    FileOutputStream fos = null;
+	    try {   
+	        byte[] data = new byte[2048];
+	        int nbread = 0;
+	        fos = new FileOutputStream(file);
+	        while((nbread=is.read(data))>-1){
+	            fos.write(data,0,nbread);               
+	        }
+	    }
+	    catch (Exception e) {
+	        L.e("cannot convert file",e);
+	    }
+	    finally{
+	        if (fos!=null){
+	            fos.close();
+	        }
+	    }
+	}
 
 	@Override
 	public boolean save(String imageUri, InputStream imageStream, IoUtils.CopyListener listener) throws IOException {
-		DiskLruCache.Editor editor = cache.edit(getKey(imageUri));
+		DiskLruCache.Editor editor = cache.edit(imageUri, getKey(imageUri));
 		if (editor == null) {
 			return false;
 		}
@@ -166,7 +214,7 @@ public class LruDiskCache implements DiskCache {
 
 	@Override
 	public boolean save(String imageUri, Bitmap bitmap) throws IOException {
-		DiskLruCache.Editor editor = cache.edit(getKey(imageUri));
+		DiskLruCache.Editor editor = cache.edit(imageUri, getKey(imageUri));
 		if (editor == null) {
 			return false;
 		}
@@ -214,7 +262,7 @@ public class LruDiskCache implements DiskCache {
 			L.e(e);
 		}
 		try {
-			initCache(cache.getDirectory(), reserveCacheDir, cache.getMaxSize(), cache.getMaxFileCount());
+			initCache(context, cache.getDirectory(), reserveCacheDir, cache.getMaxSize(), cache.getMaxFileCount());
 		} catch (IOException e) {
 			L.e(e);
 		}

@@ -86,7 +86,7 @@ public class DefaultConfigurationFactory {
 		if (diskCacheSize > 0 || diskCacheFileCount > 0) {
 			File individualCacheDir = StorageUtils.getIndividualCacheDirectory(context);
 			try {
-				return new LruDiskCache(individualCacheDir, reserveCacheDir, diskCacheFileNameGenerator, diskCacheSize,
+				return new LruDiskCache(context, individualCacheDir, reserveCacheDir, diskCacheFileNameGenerator, diskCacheSize,
 						diskCacheFileCount);
 			} catch (IOException e) {
 				L.e(e);
