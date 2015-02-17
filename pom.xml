@@ -11,11 +11,12 @@
 	<url>https://github.com/nostra13/Android-Universal-Image-Loader</url>
 	<inceptionYear>2011</inceptionYear>
 
-	<parent>
+<!-- 	
+    <parent>
 		<groupId>org.sonatype.oss</groupId>
 		<artifactId>oss-parent</artifactId>
 		<version>7</version>
-	</parent>
+	</parent> -->
 
 	<licenses>
 		<license>
@@ -26,11 +27,11 @@
 	</licenses>
 
 	<scm>
-		<connection>scm:git:git://github.com/nostra13/Android-Universal-Image-Loader.git</connection>
-		<developerConnection>scm:git:git@github.com:nostra13/Android-Universal-Image-Loader.git</developerConnection>
-		<url>https://github.com/nostra13/Android-Universal-Image-Loader</url>
+		<connection>scm:git:git://github.com/migme/Android-Universal-Image-Loader.git</connection>
+		<developerConnection>scm:git:git@github.com:migme/Android-Universal-Image-Loader.git</developerConnection>
+		<url>https://github.com/migme/Android-Universal-Image-Loader</url>
 	    <tag>v1.9.1</tag>
-  </scm>
+    </scm>
 
 	<developers>
 		<developer>
@@ -50,7 +51,7 @@
 
 	<modules>
 		<module>library</module>
-		<module>sample</module>
+		<!-- <module>sample</module> -->
 	</modules>
 
 	<properties>
@@ -78,6 +79,51 @@
 		</dependencies>
 	</dependencyManagement>
 
+	<repositories>
+        <repository>
+            <id>mig33Repo</id>
+            <url>https://tools.projectgoth.com/nexus/content/groups/public/</url>
+            <releases>
+                <enabled>true</enabled>
+                <updatePolicy>always</updatePolicy>
+                <checksumPolicy>warn</checksumPolicy>
+            </releases>
+            <snapshots>
+                <enabled>true</enabled>
+                <updatePolicy>always</updatePolicy>
+                <checksumPolicy>warn</checksumPolicy>
+            </snapshots>
+        </repository>
+    </repositories>
+    
+    <pluginRepositories>
+        <pluginRepository>
+            <id>mig33Repo</id>
+            <url>https://tools.projectgoth.com/nexus/content/groups/public</url>
+            <releases>
+                <enabled>true</enabled>
+                <checksumPolicy>warn</checksumPolicy>
+            </releases>
+            <snapshots>
+                <enabled>true</enabled>
+                <checksumPolicy>warn</checksumPolicy>
+            </snapshots>
+        </pluginRepository>
+    </pluginRepositories>
+	
+    <distributionManagement>
+        <repository>
+            <id>nexus</id>
+            <name>Nexus Release Repo</name>
+            <url>https://tools.projectgoth.com/nexus/content/repositories/releases</url>
+        </repository>
+        <snapshotRepository>
+            <id>nexus</id>
+            <name>Nexus Release Repo</name>
+            <url>https://tools.projectgoth.com/nexus/content/repositories/snapshots</url>
+        </snapshotRepository>
+    </distributionManagement>
+    
 	<build>
 		<pluginManagement>
 			<plugins>
